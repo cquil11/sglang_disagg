@@ -43,10 +43,7 @@ else
     exit 1
 fi
 
-
-
-# public repo url: rocm/sgl-dev:sglang-0.5.6.post1-rocm711-mi35x-mori-1212-3
-export DOCKER_IMAGE_NAME="${DOCKER_IMAGE_NAME:-rocm/pytorch-private:sglang-0.5.6.post1-rocm711-mi35x-mori-1212-3}"
+export DOCKER_IMAGE_NAME="${DOCKER_IMAGE_NAME:-rocm/sgl-dev:sglang-0.5.6.post1-rocm700-mi35x-mori-1218}"
 if test -z "${DOCKER_IMAGE_NAME}"; then
   echo "Error: DOCKER_IMAGE_NAME is not set or empty."
   exit 1
