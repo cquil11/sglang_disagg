@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 usage() {
     cat << 'USAGE'
 This script aims to provide a one-liner call to the submit_job_script.py,

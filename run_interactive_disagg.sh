@@ -19,6 +19,8 @@
 # BENCH_NUM_PROMPTS_MULTIPLIER: Number of prompts = max_concurrency * multiplier (default: 10)
 # BENCH_MAX_CONCURRENCY: Maximum concurrency for benchmark (default: 512) [can be a single value or a list like "512x128", only using the first value for now]
 
+set -x
+
 export xP=1
 export yD=2
 export MODEL_DIR="/nfsdata"
