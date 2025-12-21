@@ -2,6 +2,7 @@ import socket
 import time
 import threading
 import argparse
+import os
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Optionally open and close a port on the local node.")
@@ -44,12 +45,15 @@ def open_port():
     """Open a listening socket on the current node."""
     global server_socket
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind((args.local_ip, args.local_port))
+    try:
+        server_socket.bind((args.local_ip, args.local_port))
+    except OSError as e:
+        print(f"ERROR: Cannot bind to {args.local_ip}:{args.local_port} - {e}")
+        os._exit(1)
     server_socket.listen(5)
     print(f"Port {args.local_port} is now open on {args.local_ip}.")
     while True:
-        conn, addr = server_socket.accept()
+        conn, _ = server_socket.accept()
         conn.close()
 
 def close_port():
