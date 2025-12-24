@@ -37,7 +37,6 @@ export PREFILL_ENABLE_EP=true
 export PREFILL_ENABLE_DP=true
 export DECODE_ENABLE_EP=true
 export DECODE_ENABLE_DP=true
-# export DECODE_MTP_SIZE=0
 export DECODE_MTP_SIZE=2
 
 bash submit_disagg.sh \
