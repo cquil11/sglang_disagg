@@ -6,8 +6,7 @@
 # Environment Configuration
 # =============================================================================
 
-MASTER_ADDR="${MASTER_ADDR:-localhost}"
-MASTER_PORT="${MASTER_PORT:-23731}"
+NODE0_ADDR="${NODE0_ADDR:-localhost}"
 NODE_RANK="${NODE_RANK:-0}"
 MODEL_DIR="${MODEL_DIR:-}"
 MODEL_NAME="${MODEL_NAME:-}"
@@ -49,7 +48,7 @@ host_name=$(hostname)
 
 # Common configurations shared by both prefill and decode (base)
 declare -A MODEL_BASE_CONFIGS=(
-    ["DeepSeek-R1"]="--decode-log-interval 1 --watchdog-timeout 1000000 --chunked-prefill-size 262144 --ep-dispatch-algorithm fake --load-balance-method round_robin --kv-cache-dtype fp8_e4m3 --attention-backend aiter"
+    ["DeepSeek-R1"]="--decode-log-interval 1 --watchdog-timeout 3600 --chunked-prefill-size 262144 --ep-dispatch-algorithm fake --load-balance-method round_robin --kv-cache-dtype fp8_e4m3 --attention-backend aiter"
 )
 
 
@@ -229,7 +228,8 @@ python $SGL_WS_PATH/socket_barrier.py \
     --local-port 5000 \
     --enable-port \
     --node-ips ${IPADDRS} \
-    --node-ports 5000
+    --node-ports 5000 \
+    --timeout 300
 
 
 # =============================================================================
@@ -278,7 +278,10 @@ if [ "$NODE_RANK" -eq 0 ]; then
     echo "Waiting for all prefill and decode servers to be up . . ."
     python $SGL_WS_PATH/socket_barrier.py \
         --node-ips ${IPADDRS} \
-        --node-ports 8000
+        --node-ports 8000 \
+        --timeout 1800
+
+    echo "Congratulations!!! All prefill and decode servers are up . . ."
 
     set -x 
     python -m sglang_router.launch_router \
@@ -298,15 +301,18 @@ if [ "$NODE_RANK" -eq 0 ]; then
     cd /sglang_disagg
 
     # n_prefill n_decode prefill_gpus decode_gpus model_dir model_name log_path isl osl concurrency_list req_rate random_range_ratio num_prompts_multiplier
+    bash /sglang_disagg/bench.sh ${xP} ${yD} $((PREFILL_TP_SIZE*xP)) $((DECODE_TP_SIZE*yD)) \
+        $MODEL_DIR $MODEL_NAME /run_logs/slurm_job-${SLURM_JOB_ID} ${BENCH_INPUT_LEN} \
+        ${BENCH_OUTPUT_LEN} "${BENCH_MAX_CONCURRENCY}" ${BENCH_REQUEST_RATE} \
+        ${BENCH_RANDOM_RANGE_RATIO} ${BENCH_NUM_PROMPTS_MULTIPLIER}
+
     if [ ! -d /sglang_disagg/logs ]; then
         mkdir -p /sglang_disagg/logs
         echo "Created directory: /sglang_disagg/logs"
     fi
 
-    bash /sglang_disagg/bench.sh ${xP} ${yD} $((PREFILL_TP_SIZE*xP)) $((DECODE_TP_SIZE*yD)) \
-        $MODEL_DIR $MODEL_NAME /sglang_disagg/logs/slurm_job-${SLURM_JOB_ID} ${BENCH_INPUT_LEN} \
-        ${BENCH_OUTPUT_LEN} "${BENCH_MAX_CONCURRENCY}" ${BENCH_REQUEST_RATE} \
-        ${BENCH_RANDOM_RANGE_RATIO} ${BENCH_NUM_PROMPTS_MULTIPLIER}
+    # Copy the bench.sh result from tmp folder into shared nfs folder
+    cp -r /run_logs/slurm_job-${SLURM_JOB_ID} /sglang_disagg/logs/
  
     echo "Killing the proxy server and prefill server"
     kill $proxy_pid
@@ -342,15 +348,16 @@ elif [ "$NODE_RANK" -gt 0 ] && [ "$NODE_RANK" -lt "$NODE_OFFSET" ]; then
 
     echo "Waiting for proxy server to be up..."
     python $SGL_WS_PATH/socket_barrier.py \
-        --node-ips ${MASTER_ADDR} \
-        --node-ports 30000
-    
+        --node-ips ${NODE0_ADDR} \
+        --node-ports 30000 \
+        --timeout 1800
+
     echo "Waiting until proxy server closes..."
     python $SGL_WS_PATH/socket_wait.py \
-        --remote-ip ${MASTER_ADDR} \
+        --remote-ip ${NODE0_ADDR} \
         --remote-port 30000
 
-    echo "Killing the prefill server"
+    echo "Killing the rank $NODE_RANK prefill server"
     kill $prefill_pid
 
 else
@@ -384,15 +391,16 @@ else
 
     echo "Waiting for proxy server to be up..."
     python $SGL_WS_PATH/socket_barrier.py \
-        --node-ips ${MASTER_ADDR} \
-        --node-ports 30000
-    
+        --node-ips ${NODE0_ADDR} \
+        --node-ports 30000 \
+        --timeout 1800
+
     echo "Waiting until proxy server closes..."
     python $SGL_WS_PATH/socket_wait.py \
-        --remote-ip ${MASTER_ADDR} \
+        --remote-ip ${NODE0_ADDR} \
         --remote-port 30000
 
-    echo "Killing the decode server"
+    echo "Killing the rank $RANK decode server"
     kill $decode_pid
 
 fi

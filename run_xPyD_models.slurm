@@ -231,9 +231,8 @@ echo ""
 # Node information
 USER_NAME=$(whoami)
 MASTER_NODE=$(echo "$SELECTED_NODES" | head -n 1)
-MASTER_ADDR=$(srun --nodes=1 --ntasks=1 --time=00:20:00 --nodelist="$MASTER_NODE" bash -c 'ip route get 1.1.1.1')
-MASTER_ADDR=$(echo "$MASTER_ADDR" | awk '/src/ {print $7}')
-MASTER_PORT=39566  # Choose an open port
+NODE0_ADDR=$(srun --nodes=1 --ntasks=1 --time=00:20:00 --nodelist="$MASTER_NODE" bash -c 'ip route get 1.1.1.1')
+NODE0_ADDR=$(echo "$NODE0_ADDR" | awk '/src/ {print $7}')
 
 IPS=()
 
@@ -252,8 +251,7 @@ timestamp=$(date +"%Y-%m-%d_%H-%M-%S")
 NNODES=$NUM_NODES
 
 echo "MASTER_NODE is ${MASTER_NODE}"
-echo "MASTER_ADDR is ${MASTER_ADDR}"
-echo "MASTER_PORT is ${MASTER_PORT}"
+echo "NODE0_ADDR is ${NODE0_ADDR}"
 echo "NNODES is ${NNODES}"
 echo "REPO Directory is ${DI_REPO_DIR}"
 echo "USER_NAME is ${USER_NAME}"
@@ -263,8 +261,7 @@ echo "USER_NAME is ${USER_NAME}"
 export DI_REPO_DIR=$DI_REPO_DIR
 export SGL_WS_PATH=$SGL_WS_PATH
 export NNODES=$NNODES
-export MASTER_ADDR=$MASTER_ADDR
-export MASTER_PORT=$MASTER_PORT
+export NODE0_ADDR=$NODE0_ADDR
 export MODEL_PATH=$MODEL_PATH
 export MODEL_DIR=$MODEL_DIR
 export xP=$xP
@@ -288,15 +285,51 @@ export BENCH_MAX_CONCURRENCY=$BENCH_MAX_CONCURRENCY
 export DOCKER_CONT_NAME="container_sbatch_${USER_NAME}_${MODEL_NAME}_${SLURM_JOB_ID}"
 export RUN_FILE_FULL="$SGL_WS_PATH/${RUN_FILE}"
 
+
 # Use only the selected nodes for srun execution
 SELECTED_NODELIST_SRUN=$(echo "$SELECTED_NODES" | paste -sd,)
 
-# Remove all containers with prefix `container_sbatch_` before running the new job so making it idempotent
 
+cleanup() {
+  echo "[${SLURM_JOB_ID}] termination received on $(hostname); cleaning stale logs folder..."
+  # clean up the logs folder
+  sudo rm -rf ${SLURM_SUBMIT_DIR}/logs 2>/dev/null || true
+
+  echo "[${SLURM_JOB_ID}] cleanup done."
+}
+
+trap cleanup INT TERM HUP
+
+
+# Force NFS cache refresh on all nodes before running Docker to avoid stale file handle errors
+echo "Refreshing NFS caches on all nodes..."
 srun --nodelist="$SELECTED_NODELIST_SRUN" bash -c '
-echo "Rank $SLURM_PROCID on $(hostname)";
-sudo docker ps --filter "name=^container_sbatch_" --format "{{.ID}}" | xargs --no-run-if-empty sudo docker stop;
-sudo docker run --rm \
+    sync
+    # Force re-stat of the mounted directory to refresh NFS handles
+    ls -la '"$DI_REPO_DIR"' > /dev/null 2>&1
+    stat '"$DI_REPO_DIR"'/sglang_disagg_server.sh > /dev/null 2>&1
+    cat '"$DI_REPO_DIR"'/sglang_disagg_server.sh > /dev/null 2>&1
+    # Drop caches if we have permission (optional, requires root)
+    echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null 2>&1 || true
+    echo "NFS cache refreshed on $(hostname)"
+'
+
+srun \
+  --nodelist="$SELECTED_NODELIST_SRUN" \
+  --kill-on-bad-exit=1 \
+  --signal=TERM@30 \
+  --unbuffered \
+  bash -lc "
+set -euo pipefail
+
+echo \"Rank \$SLURM_PROCID on \$(hostname)\"
+
+# Pre-clean (idempotent)
+sudo docker ps -aq --filter \"name=^container_sbatch_\" | xargs -r sudo docker rm -f || true
+
+exec sudo docker run --rm \
+    --init \
+    --stop-timeout 10 \
     --device /dev/dri \
     --device /dev/kfd \
     --device /dev/infiniband \
@@ -307,39 +340,45 @@ sudo docker run --rm \
     --security-opt seccomp=unconfined \
     --privileged \
     -v ${MODEL_DIR}:/models \
-    -v $HOME/.ssh:/root/.ssh \
+    -v \$HOME/.ssh:/root/.ssh \
     --shm-size 128G \
     -v /tmp:/run_logs \
-    -v $DI_REPO_DIR:$SGL_WS_PATH \
-    -e SLURM_JOB_ID=$SLURM_JOB_ID \
-    -e SLURM_JOB_NODELIST=$SLURM_JOB_NODELIST \
-    -e NNODES=$NNODES \
-    -e NODE_RANK=$SLURM_PROCID  \
-    -e MASTER_ADDR=$MASTER_ADDR \
-    -e MASTER_PORT=$MASTER_PORT \
-    -e MODEL_DIR=/models    \
-    -e SGL_WS_PATH=$SGL_WS_PATH \
-    -e xP=$xP \
-    -e yD=$yD \
-    -e MODEL_NAME=$MODEL_NAME \
-    -e IPADDRS=$IPADDRS \
-    -e PREFILL_TP_SIZE=$PREFILL_TP_SIZE \
-    -e PREFILL_ENABLE_EP=$PREFILL_ENABLE_EP \
-    -e PREFILL_ENABLE_DP=$PREFILL_ENABLE_DP \
-    -e DECODE_TP_SIZE=$DECODE_TP_SIZE \
-    -e DECODE_ENABLE_EP=$DECODE_ENABLE_EP \
-    -e DECODE_ENABLE_DP=$DECODE_ENABLE_DP \
-    -e DECODE_MTP_SIZE=$DECODE_MTP_SIZE \
-    -e BENCH_INPUT_LEN=$BENCH_INPUT_LEN \
-    -e BENCH_OUTPUT_LEN=$BENCH_OUTPUT_LEN \
-    -e BENCH_RANDOM_RANGE_RATIO=$BENCH_RANDOM_RANGE_RATIO \
-    -e BENCH_NUM_PROMPTS_MULTIPLIER=$BENCH_NUM_PROMPTS_MULTIPLIER \
-    -e BENCH_MAX_CONCURRENCY=$BENCH_MAX_CONCURRENCY \
-    --name $DOCKER_CONT_NAME \
-    $DOCKER_IMAGE_NAME bash -c "
-        mkdir -p /run_logs/slurm_job-${SLURM_JOB_ID}
-        $RUN_FILE_FULL 2>&1 | tee /run_logs/slurm_job-${SLURM_JOB_ID}/pd_sglang_bench_serving.sh_NODE${SLURM_PROCID}.log
-    "
-'
-srun --nodelist="$SELECTED_NODELIST_SRUN" bash -c 'sudo docker rm -f $DOCKER_CONT_NAME'
+    -v ${DI_REPO_DIR}:${SGL_WS_PATH} \
+    -e SLURM_JOB_ID=\$SLURM_JOB_ID \
+    -e SLURM_JOB_NODELIST=\$SLURM_JOB_NODELIST \
+    -e NNODES=\$NNODES \
+    -e NODE_RANK=\$SLURM_PROCID \
+    -e NODE0_ADDR=\$NODE0_ADDR \
+    -e MODEL_DIR=/models \
+    -e SGL_WS_PATH=${SGL_WS_PATH} \
+    -e xP=\$xP \
+    -e yD=\$yD \
+    -e MODEL_NAME=\$MODEL_NAME \
+    -e IPADDRS=\$IPADDRS \
+    -e PREFILL_TP_SIZE=\$PREFILL_TP_SIZE \
+    -e PREFILL_ENABLE_EP=\$PREFILL_ENABLE_EP \
+    -e PREFILL_ENABLE_DP=\$PREFILL_ENABLE_DP \
+    -e DECODE_TP_SIZE=\$DECODE_TP_SIZE \
+    -e DECODE_ENABLE_EP=\$DECODE_ENABLE_EP \
+    -e DECODE_ENABLE_DP=\$DECODE_ENABLE_DP \
+    -e DECODE_MTP_SIZE=\$DECODE_MTP_SIZE \
+    -e BENCH_INPUT_LEN=\$BENCH_INPUT_LEN \
+    -e BENCH_OUTPUT_LEN=\$BENCH_OUTPUT_LEN \
+    -e BENCH_RANDOM_RANGE_RATIO=\$BENCH_RANDOM_RANGE_RATIO \
+    -e BENCH_NUM_PROMPTS_MULTIPLIER=\$BENCH_NUM_PROMPTS_MULTIPLIER \
+    -e BENCH_MAX_CONCURRENCY=\$BENCH_MAX_CONCURRENCY \
+    --name \"$DOCKER_CONT_NAME\" \
+    \"$DOCKER_IMAGE_NAME\" bash -lc '
+        mkdir -p /run_logs/slurm_job-'\"\$SLURM_JOB_ID\"'
+        '"$RUN_FILE_FULL"' 2>&1 | tee /run_logs/slurm_job-'\"\$SLURM_JOB_ID\"'/pd_sglang_bench_serving.sh_NODE'\"\$SLURM_PROCID\"'.log
+    '
+
+DOCKER_EXIT_CODE=\$?
+if [[ \$DOCKER_EXIT_CODE -ne 0 ]]; then
+  echo \"ERROR: docker exited rc=\$DOCKER_EXIT_CODE on \$(hostname)\"
+  exit \$DOCKER_EXIT_CODE
+fi
+"
+
+srun --nodelist="$SELECTED_NODELIST_SRUN" bash -c 'sudo docker rm -f $DOCKER_CONT_NAME 2>/dev/null || true'
 
