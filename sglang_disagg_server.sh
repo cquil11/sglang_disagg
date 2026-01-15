@@ -46,15 +46,15 @@ if [[ -n "${MORI_RDMA_TC}" ]]; then
     echo "MORI_RDMA_TC is set to: $MORI_RDMA_TC"
 
     if [[ "$MORI_RDMA_TC" -eq 104 ]]; then
-        if [[ "$host_name" != GPU* ]]; then
-            echo "ERROR: MORI_RDMA_TC=104 but hostname '$host_name' does not start with 'GPU'"
+        if [[ "$host_name" != mia1* ]]; then
+            echo "ERROR: MORI_RDMA_TC=104 but hostname '$host_name' does not start with 'mia1'"
             exit 1
         else
             echo "Hostname '$host_name' correctly starts with 'GPU' for MORI_RDMA_TC=104"
         fi
     elif [[ "$MORI_RDMA_TC" -eq 96 ]]; then
-        if [[ "$host_name" != mia1* ]]; then
-            echo "ERROR: MORI_RDMA_TC=96 but hostname '$host_name' does not start with 'mial'"
+        if [[ "$host_name" != GPU* ]]; then
+            echo "ERROR: MORI_RDMA_TC=96 but hostname '$host_name' does not start with 'GPU'"
             exit 1
         else
             echo "Hostname '$host_name' correctly starts with 'mial' for MORI_RDMA_TC=96"
