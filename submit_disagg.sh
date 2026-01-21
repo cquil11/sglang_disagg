@@ -101,7 +101,7 @@ sbatch_cmd=(
     --time "$TIME_LIMIT"
     --partition "$SLURM_PARTITION"
     --account "$SLURM_ACCOUNT"
-    --job-name ${xP}p${yD}d_bench-serving
+    --job-name "$RUNNER_NAME"
     run_xPyD_models.slurm
 )
 
