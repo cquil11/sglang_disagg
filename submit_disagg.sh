@@ -42,6 +42,7 @@ check_env MODEL_PATH
 check_env MODEL_NAME
 # check_env CONFIG_DIR
 check_env CONTAINER_IMAGE
+check_env RUNNER_NAME
 
 
 # GPU_TYPE="mi300x"
