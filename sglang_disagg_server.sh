@@ -6,6 +6,8 @@
 # Environment Configuration
 # =============================================================================
 
+set -x
+
 NODE0_ADDR="${NODE0_ADDR:-localhost}"
 NODE_RANK="${NODE_RANK:-0}"
 MODEL_DIR="${MODEL_DIR:-}"
