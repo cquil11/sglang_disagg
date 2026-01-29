@@ -380,6 +380,7 @@ exec sudo docker run --rm \
     -e BENCH_MAX_CONCURRENCY=\$BENCH_MAX_CONCURRENCY \
     --name \"$DOCKER_CONT_NAME\" \
     \"$DOCKER_IMAGE_NAME\" bash -lc '
+        set -x
         mkdir -p /run_logs/slurm_job-'\"\$SLURM_JOB_ID\"'
         '"$RUN_FILE_FULL"' 2>&1 | tee /run_logs/slurm_job-'\"\$SLURM_JOB_ID\"'/pd_sglang_bench_serving.sh_NODE'\"\$SLURM_PROCID\"'.log
     '
