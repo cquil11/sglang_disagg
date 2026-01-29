@@ -25,6 +25,8 @@ $ISL $OSL $CONCURRENCIES $REQUEST_RATE
 USAGE
 }
 
+set -x
+
 check_env() {
     local name="$1"
     if [[ -z "${!name:-}" ]]; then

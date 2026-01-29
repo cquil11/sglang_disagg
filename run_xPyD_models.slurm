@@ -9,6 +9,7 @@
 #SBATCH --output="slurm_job-%j.out"
 #SBATCH --error="slurm_job-%j.err"
 
+set -x
 
 # ------------------------
 # Print current time in UTC and PST formats
