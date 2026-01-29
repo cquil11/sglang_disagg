@@ -42,6 +42,7 @@ check_env MODEL_PATH
 check_env MODEL_NAME
 # check_env CONFIG_DIR
 check_env CONTAINER_IMAGE
+check_env RUNNER_NAME
 
 
 # GPU_TYPE="mi300x"
@@ -103,11 +104,15 @@ sbatch_cmd=(
     -n "$NUM_NODES"
     --time "$TIME_LIMIT"
     --partition "$SLURM_PARTITION"
-    --nodelist GPU7418,GPU3E76,GPU74C0
     --account "$SLURM_ACCOUNT"
-    --job-name ${xP}p${yD}d_bench-serving
+    --job-name "$RUNNER_NAME"
     run_xPyD_models.slurm
 )
 
-echo "Running: ${sbatch_cmd[*]}"
-"${sbatch_cmd[@]}"
+# todo: --parsable outputs only the jobid and cluster name, test if jobid;clustername is correct
+JOB_ID=$("${sbatch_cmd[@]}")
+if [[ $? -ne 0 ]]; then
+    echo "Error: Failed to submit job with sbatch" >&2
+    exit 1
+fi
+echo "$JOB_ID"

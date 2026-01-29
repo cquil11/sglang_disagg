@@ -49,20 +49,18 @@ if [[ -n "${MORI_RDMA_TC}" ]]; then
 
     if [[ "$MORI_RDMA_TC" -eq 104 ]]; then
         if [[ "$host_name" != mia1* ]]; then
-            echo "ERROR: MORI_RDMA_TC=104 but hostname '$host_name' does not start with 'mia1'"
+            echo "ERROR: MORI_RDMA_TC=104 should be applied on Node with prefix 'mia' but Host '$host_name' does not comply "
             exit 1
-        else
-            echo "Hostname '$host_name' correctly starts with 'GPU' for MORI_RDMA_TC=104"
         fi
+        echo "Host '$host_name' has been configured with MORI_RDMA_TC=104"
     elif [[ "$MORI_RDMA_TC" -eq 96 ]]; then
         if [[ "$host_name" != GPU* ]]; then
-            echo "ERROR: MORI_RDMA_TC=96 but hostname '$host_name' does not start with 'GPU'"
+            echo "ERROR: MORI_RDMA_TC=96 should be applied on Node with prefix 'GPU' but Host '$host_name' does not comply "
             exit 1
-        else
-            echo "Hostname '$host_name' correctly starts with 'mial' for MORI_RDMA_TC=96"
         fi
+        echo "Host '$host_name' has been configured with MORI_RDMA_TC=96"
     else
-        echo "ERROR: MORI_RDMA_TC=$MORI_RDMA_TC is neither 104 nor 96. Please configure the correct value."
+        echo "ERROR: MORI_RDMA_TC=$MORI_RDMA_TC should be either 104 or 96. Please apply the recommended QoS/DSCP configs."
         exit 1
     fi
 else
