@@ -329,7 +329,7 @@ srun \
   --signal=TERM@30 \
   --unbuffered \
   bash -lc "
-set -euo pipefail
+set -euxo pipefail
 
 echo \"Rank \$SLURM_PROCID on \$(hostname)\"
 
