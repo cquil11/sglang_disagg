@@ -6,6 +6,8 @@
 # Environment Configuration
 # =============================================================================
 
+set -ex
+
 NODE0_ADDR="${NODE0_ADDR:-localhost}"
 NODE_RANK="${NODE_RANK:-0}"
 MODEL_DIR="${MODEL_DIR:-}"
@@ -71,20 +73,26 @@ fi
 # =============================================================================
 
 # Common configurations shared by both prefill and decode (base)
+
+
+
 declare -A MODEL_BASE_CONFIGS=(
-    ["DeepSeek-R1"]="--decode-log-interval 1 --watchdog-timeout 3600 --chunked-prefill-size 262144 --ep-dispatch-algorithm fake --load-balance-method round_robin --kv-cache-dtype fp8_e4m3 --attention-backend aiter"
+    ["DeepSeek-R1"]="--decode-log-interval 1 --watchdog-timeout 3600 --ep-dispatch-algorithm fake --load-balance-method round_robin --kv-cache-dtype fp8_e4m3 --attention-backend aiter"
+    ["DeepSeek-R1-0528-MXFP4-Preview"]="--decode-log-interval 1 --watchdog-timeout 3600 --ep-dispatch-algorithm fake --load-balance-method round_robin --kv-cache-dtype fp8_e4m3 --attention-backend aiter"
 )
 
 
 # MTP configurations (only when DECODE_MTP_SIZE is set and greater than zero)
 declare -A MODEL_MTP_CONFIGS=(
     ["DeepSeek-R1"]="--speculative-algorithm NEXTN --speculative-num-steps 1 --speculative-eagle-topk 1 --speculative-num-draft-tokens ${DECODE_MTP_SIZE}"
+    ["DeepSeek-R1-0528-MXFP4-Preview"]="--speculative-algorithm NEXTN --speculative-num-steps 1 --speculative-eagle-topk 1 --speculative-num-draft-tokens ${DECODE_MTP_SIZE}"
 )
 
 
 # DP-specific common configurations (only when DP is enabled)
 declare -A MODEL_DP_CONFIGS=(
     ["DeepSeek-R1"]="--moe-a2a-backend mori --enable-dp-attention --moe-dense-tp-size 1 --enable-dp-lm-head"
+    ["DeepSeek-R1-0528-MXFP4-Preview"]="--moe-a2a-backend mori --enable-dp-attention --moe-dense-tp-size 1 --enable-dp-lm-head"
 )
 
 # Prefill-specific configurations
@@ -98,7 +106,8 @@ else
 fi
 
 declare -A MODEL_PREFILL_CONFIGS=(
-    ["DeepSeek-R1"]="--mem-fraction-static 0.8 --max-running-requests ${prefill_max_running_requests} --cuda-graph-bs ${prefill_cuda_graph_bs[*]} --disable-radix-cache"
+    ["DeepSeek-R1"]="--mem-fraction-static 0.8 --max-running-requests ${prefill_max_running_requests} --chunked-prefill-size 16384 --cuda-graph-bs ${prefill_cuda_graph_bs[*]} --disable-radix-cache"
+    ["DeepSeek-R1-0528-MXFP4-Preview"]="--mem-fraction-static 0.8 --max-running-requests ${prefill_max_running_requests} --chunked-prefill-size 16384  --cuda-graph-bs ${prefill_cuda_graph_bs[*]} --disable-radix-cache"
 )
 
 # Decode-specific configurations
@@ -113,8 +122,8 @@ fi
 
 declare -A MODEL_DECODE_CONFIGS=(
     ["DeepSeek-R1"]="--mem-fraction-static 0.6 --max-running-requests ${decode_max_running_requests} --cuda-graph-bs ${decode_cuda_graph_bs[*]} --prefill-round-robin-balance"
+    ["DeepSeek-R1-0528-MXFP4-Preview"]="--mem-fraction-static 0.6 --max-running-requests ${decode_max_running_requests} --cuda-graph-bs ${decode_cuda_graph_bs[*]} --prefill-round-robin-balance"
 )
-
 
 
 # =============================================================================
@@ -253,7 +262,7 @@ python $SGL_WS_PATH/socket_barrier.py \
     --enable-port \
     --node-ips ${IPADDRS} \
     --node-ports 5000 \
-    --timeout 300
+    --timeout 3600
 
 
 # =============================================================================
@@ -303,7 +312,7 @@ if [ "$NODE_RANK" -eq 0 ]; then
     python $SGL_WS_PATH/socket_barrier.py \
         --node-ips ${IPADDRS} \
         --node-ports 8000 \
-        --timeout 1800
+        --timeout 3600
 
     echo "Congratulations!!! All prefill and decode servers are up . . ."
 
@@ -374,7 +383,7 @@ elif [ "$NODE_RANK" -gt 0 ] && [ "$NODE_RANK" -lt "$NODE_OFFSET" ]; then
     python $SGL_WS_PATH/socket_barrier.py \
         --node-ips ${NODE0_ADDR} \
         --node-ports 30000 \
-        --timeout 1800
+        --timeout 3600
 
     echo "Waiting until proxy server closes..."
     python $SGL_WS_PATH/socket_wait.py \
@@ -417,7 +426,7 @@ else
     python $SGL_WS_PATH/socket_barrier.py \
         --node-ips ${NODE0_ADDR} \
         --node-ports 30000 \
-        --timeout 1800
+        --timeout 3600
 
     echo "Waiting until proxy server closes..."
     python $SGL_WS_PATH/socket_wait.py \

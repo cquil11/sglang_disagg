@@ -25,6 +25,8 @@ $ISL $OSL $CONCURRENCIES $REQUEST_RATE
 USAGE
 }
 
+set -x
+
 check_env() {
     local name="$1"
     if [[ -z "${!name:-}" ]]; then
@@ -94,6 +96,9 @@ export BENCH_MAX_CONCURRENCY=${CONCURRENCIES}
 export BENCH_REQUEST_RATE=${REQUEST_RATE}
 
 # Construct the sbatch command
+# Full nodelist: smci355-ccs-aus-n06-21,smci355-ccs-aus-n08-[21,25,29,33],smci355-ccs-aus-n09-[21,25,29,33]
+#    --exclude smci355-ccs-aus-n08-[21,25],smci355-ccs-aus-n09-[21,25,29,33]
+
 sbatch_cmd=(
     sbatch
     --parsable
