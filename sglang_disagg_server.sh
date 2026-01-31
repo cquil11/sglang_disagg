@@ -6,7 +6,7 @@
 # Environment Configuration
 # =============================================================================
 
-set -x
+set -ex
 
 NODE0_ADDR="${NODE0_ADDR:-localhost}"
 NODE_RANK="${NODE_RANK:-0}"
@@ -262,7 +262,7 @@ python $SGL_WS_PATH/socket_barrier.py \
     --enable-port \
     --node-ips ${IPADDRS} \
     --node-ports 5000 \
-    --timeout 300
+    --timeout 3600
 
 
 # =============================================================================
@@ -312,7 +312,7 @@ if [ "$NODE_RANK" -eq 0 ]; then
     python $SGL_WS_PATH/socket_barrier.py \
         --node-ips ${IPADDRS} \
         --node-ports 8000 \
-        --timeout 1800
+        --timeout 3600
 
     echo "Congratulations!!! All prefill and decode servers are up . . ."
 
@@ -383,7 +383,7 @@ elif [ "$NODE_RANK" -gt 0 ] && [ "$NODE_RANK" -lt "$NODE_OFFSET" ]; then
     python $SGL_WS_PATH/socket_barrier.py \
         --node-ips ${NODE0_ADDR} \
         --node-ports 30000 \
-        --timeout 1800
+        --timeout 3600
 
     echo "Waiting until proxy server closes..."
     python $SGL_WS_PATH/socket_wait.py \
@@ -426,7 +426,7 @@ else
     python $SGL_WS_PATH/socket_barrier.py \
         --node-ips ${NODE0_ADDR} \
         --node-ports 30000 \
-        --timeout 1800
+        --timeout 3600
 
     echo "Waiting until proxy server closes..."
     python $SGL_WS_PATH/socket_wait.py \

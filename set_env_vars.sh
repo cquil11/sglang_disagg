@@ -65,7 +65,8 @@ $1 == "DSCP" && $2 == ":" && $NF == p {
     print $3; exit
 }')
 
-TC=$(( 4 * $ND_DSCP ))
+# Default to 0 if ND_DSCP is empty to avoid arithmetic error
+TC=$(( 4 * ${ND_DSCP:-0} ))
 
 export MORI_RDMA_SL=$ND_PRIO
 export MORI_RDMA_TC=$TC
