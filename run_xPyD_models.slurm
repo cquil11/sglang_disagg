@@ -9,6 +9,7 @@
 #SBATCH --output="slurm_job-%j.out"
 #SBATCH --error="slurm_job-%j.err"
 
+set -x
 
 # ------------------------
 # Print current time in UTC and PST formats
@@ -22,7 +23,8 @@ echo ""
 # Define valid model names
 VALID_MODELS=( \
     "DeepSeek-V3" \
-    "DeepSeek-R1" 
+    "DeepSeek-R1" \
+    "DeepSeek-R1-0528-MXFP4-Preview"
 )
 
 
@@ -30,6 +32,7 @@ VALID_MODELS=( \
 declare -A MODEL_RUNFILES=(
     ["DeepSeek-V3"]="sglang_disagg_server.sh"
     ["DeepSeek-R1"]="sglang_disagg_server.sh"
+    ["DeepSeek-R1-0528-MXFP4-Preview"]="sglang_disagg_server.sh"
 )
 
 # Check if MODEL_NAME exists and fetch runfile
@@ -327,11 +330,13 @@ srun \
   --unbuffered \
   bash -lc "
 set -euo pipefail
+set -x
 
 echo \"Rank \$SLURM_PROCID on \$(hostname)\"
 
 # Pre-clean (idempotent)
 sudo docker ps -aq --filter \"name=^container_sbatch_\" | xargs -r sudo docker rm -f || true
+sudo docker ps -aq | xargs -r sudo docker stop || true
 
 exec sudo docker run --rm \
     --init \
@@ -376,6 +381,7 @@ exec sudo docker run --rm \
     -e BENCH_MAX_CONCURRENCY=\$BENCH_MAX_CONCURRENCY \
     --name \"$DOCKER_CONT_NAME\" \
     \"$DOCKER_IMAGE_NAME\" bash -lc '
+        set -x
         mkdir -p /run_logs/slurm_job-'\"\$SLURM_JOB_ID\"'
         '"$RUN_FILE_FULL"' 2>&1 | tee /run_logs/slurm_job-'\"\$SLURM_JOB_ID\"'/pd_sglang_bench_serving.sh_NODE'\"\$SLURM_PROCID\"'.log
     '
